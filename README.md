@@ -107,3 +107,6 @@ Possible future upgrades:
 * startup animation
 * larger LED arrays
 * PCB version shaped like a Flux Capacitor
+
+<img width="2160" height="1913" alt="3D_PCB2_2026-07-01_02" src="https://github.com/user-attachments/assets/69a0681b-34de-454d-8e7d-e5f13fb7fefe" />
+<img width="2160" height="1945" alt="3D_PCB2_2026-07-01" src="https://github.com/user-attachments/assets/0a1cd46a-53d5-42c8-a005-ac88e0b81abf" />
