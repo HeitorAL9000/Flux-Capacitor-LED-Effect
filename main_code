@@ -1,0 +1,195 @@
+#include <xc.h>
+#include <stdint.h>
+
+#define _XTAL_FREQ 4000000UL
+
+// -------------------------
+// LED output masks
+// -------------------------
+#define LED1_MASK 0b00000001  // GP0, pin 7
+#define LED2_MASK 0b00000010  // GP1, pin 6
+#define LED3_MASK 0b00000100  // GP2, pin 5
+#define LED4_MASK 0b00010000  // GP4, pin 3
+#define LED5_MASK 0b00100000  // GP5, pin 2
+
+#define BUTTON_PIN GP3        // GP3 / pin 4
+
+const uint8_t led_masks[5] =
+{
+    LED1_MASK,
+    LED2_MASK,
+    LED3_MASK,
+    LED4_MASK,
+    LED5_MASK
+};
+
+// 5 speed presets
+// Higher number = slower fade
+const uint8_t fade_repeats[5] =
+{
+    1,   // speed 1: very fast
+    2,   // speed 2: fast
+    3,   // speed 3: medium
+    5,   // speed 4: slow
+    8    // speed 5: very slow
+};
+
+const uint8_t hold_repeats[5] =
+{
+    4,    // very fast
+    6,    // fast
+    8,    // medium
+    12,   // slow
+    18    // very slow
+};
+
+uint8_t speed_index = 2;       // start at medium speed
+uint8_t button_latched = 0;
+
+// -------------------------
+// PIC setup
+// -------------------------
+void init_pic(void)
+{
+    // Internal oscillator = 4 MHz
+    OSCCON = 0b01100000;
+
+    // Disable analogue inputs
+    ANSEL = 0x00;
+
+    // Disable comparator
+    CMCON0 = 0x07;
+
+    // GP3 is input only.
+    // GP0, GP1, GP2, GP4, GP5 are outputs.
+    TRISIO = 0b00001000;
+
+    // Enable weak pull-ups globally
+    OPTION_REGbits.nGPPU = 0;
+
+    // Enable weak pull-up on GP3
+    WPU = 0b00001000;
+
+    // Clear outputs
+    GPIO = 0x00;
+}
+
+// -------------------------
+// Button handling
+// -------------------------
+void check_button(void)
+{
+    // Button pressed = GP3 LOW
+    if (BUTTON_PIN == 0)
+    {
+        if (button_latched == 0)
+        {
+            __delay_ms(20);   // debounce
+
+            if (BUTTON_PIN == 0)
+            {
+                speed_index++;
+
+                if (speed_index >= 5)
+                {
+                    speed_index = 0;
+                }
+
+                button_latched = 1;
+            }
+        }
+    }
+    else
+    {
+        button_latched = 0;
+    }
+}
+
+// -------------------------
+// Stable software PWM
+// -------------------------
+void pwm_led(uint8_t led_index, uint8_t brightness)
+{
+    uint8_t pwm;
+    uint8_t mask;
+
+    mask = led_masks[led_index];
+
+    for (pwm = 0; pwm < 255; pwm++)
+    {
+        if (pwm < brightness)
+        {
+            GPIO = mask;
+        }
+        else
+        {
+            GPIO = 0x00;
+        }
+
+        // Keep this constant.
+        // Do not change this for speed control.
+        __delay_us(35);
+    }
+
+    GPIO = 0x00;
+}
+
+// -------------------------
+// Fade one LED in and out
+// -------------------------
+void fade_led(uint8_t led_index)
+{
+    uint8_t brightness;
+    uint8_t repeat;
+
+    // Fade in
+    for (brightness = 0; brightness < 255; brightness += 5)
+    {
+        check_button();
+
+        for (repeat = 0; repeat < fade_repeats[speed_index]; repeat++)
+        {
+            pwm_led(led_index, brightness);
+        }
+    }
+
+    // Full brightness hold
+    for (repeat = 0; repeat < hold_repeats[speed_index]; repeat++)
+    {
+        check_button();
+        pwm_led(led_index, 255);
+    }
+
+    // Fade out
+    for (brightness = 255; brightness > 0; brightness -= 5)
+    {
+        check_button();
+
+        for (repeat = 0; repeat < fade_repeats[speed_index]; repeat++)
+        {
+            pwm_led(led_index, brightness);
+        }
+    }
+
+    GPIO = 0x00;
+}
+
+// -------------------------
+// Main loop
+// -------------------------
+void main(void)
+{
+    uint8_t i;
+
+    init_pic();
+
+    while (1)
+    {
+        // One direction only:
+        // GP0 -> GP1 -> GP2 -> GP4 -> GP5 -> repeat
+        for (i = 0; i < 5; i++)
+        {
+            fade_led(i);
+        }
+    }
+}
